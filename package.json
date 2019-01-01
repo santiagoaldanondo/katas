@@ -1,0 +1,30 @@
+{
+  "name": "katas",
+  "version": "1.0.0",
+  "description": "",
+  "main": "voronoi-cells.js",
+  "scripts": {
+    "test": "node_modules/mocha/bin/mocha tests/**/*test.js",
+    "debug": "node --nolazy --inspect-brk=9229 voronoi-cells.js"
+  },
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "eslint": "^5.8.0",
+    "eslint-config-airbnb": "^17.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-jsx-a11y": "^6.1.2",
+    "eslint-plugin-react": "^7.11.1",
+    "mocha": "^5.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santiagoaldanondo/katas.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/santiagoaldanondo/katas/issues"
+  },
+  "homepage": "https://github.com/santiagoaldanondo/katas#readme",
+  "dependencies": {}
+}

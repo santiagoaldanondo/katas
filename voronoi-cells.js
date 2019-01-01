@@ -1,14 +1,7 @@
-/* eslint-disable no-param-reassign */
+/* eslint-disable no-param-reassign, camelcase */
 // Find the areas of the Voronoi cells associated with the Point objects in the array p.
 
-const util = require('util');
-
-class Point {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-}
+const Point = require('./Point');
 
 const vP = (p1, p2) => ({
   x: p2.x - p1.x,
@@ -28,7 +21,7 @@ const deepCopy = (p) => {
   return copy;
 };
 
-const distance = (p1, p2) => Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+const distance = (p1, p2) => Math.sqrt(((p1.x - p2.x) ** 2) + ((p1.y - p2.y) ** 2));
 
 const sortByDistance = (point, p) => {
   const allPoints = deepCopy(p).sort((p1, p2) => (
@@ -43,7 +36,7 @@ const mediatrix = (p1, p2) => {
   const y = (p1.y + p2.y) / 2;
   const middle = new Point(x, y);
   const vy = p2.x - p1.x;
-  const vx = p2.y - p1.y;
+  const vx = -p2.y + p1.y;
   return {
     middle,
     dir: vV(vx, vy),
@@ -81,6 +74,9 @@ const initMed = (point, other, index) => ({
   pos: [null, null],
   partner: [null, null],
   visited: [],
+  point,
+  other,
+  include: false,
 });
 
 const isInside = (currInter, dir, oldInter, point) => {
@@ -89,68 +85,83 @@ const isInside = (currInter, dir, oldInter, point) => {
   return vectorial(vPoint, dir) * vectorial(vOld, dir) > 0;
 };
 
-const setPosAndRange = (inter, currMed, oldMed, point) => {
-  const currRangeLimit = escalar(vP(inter, currMed.middle), currMed.dir);
-  console.log('currRangeLimit', currRangeLimit);
-  if (currRangeLimit > currMed.range[0] && currRangeLimit < currMed.range[1]) {
-    let currIndex = 0;
-    if (currRangeLimit > 0) currIndex = 1;
-    currMed.range[currIndex] = currRangeLimit;
-    currMed.pos[currIndex] = inter;
-    currMed.partner[currIndex] = oldMed.me;
+const doSet = (med, index, range, pos, partner) => {
+  med.range[index] = range;
+  med.pos[index] = pos;
+  med.partner[index] = partner;
+};
 
-    const oldRangeLimit = escalar(vP(inter, oldMed.middle), oldMed.dir);
-    console.log('oldRangeLimit', oldRangeLimit);
-    let oldIndex;
-    if (oldMed.range[0] === -Infinity && oldMed.range[1] === Infinity) {
-      oldIndex = 0;
-      if (oldRangeLimit > 0) oldIndex = 1;
-      oldMed.range[oldIndex] = oldRangeLimit;
-      oldMed.pos[oldIndex] = inter;
-      oldMed.partner[oldIndex] = currMed.me;
-    } else if (oldMed.range[0] === -Infinity && oldMed.range[1] !== Infinity) {
-      if (isInside(inter, currMed.dir, oldMed.pos[1], point)) {
-        oldMed.range[0] = oldRangeLimit;
-        oldMed.pos[0] = inter;
-        oldMed.partner[0] = currMed.me;
-      } else {
-        oldMed.range[1] = oldRangeLimit;
-        oldMed.pos[1] = inter;
-        oldMed.partner[1] = currMed.me;
-      }
-    } else if (oldMed.range[1] === Infinity && oldMed.range[0] !== -Infinity) {
-      if (isInside(inter, currMed.dir, oldMed.pos[0], point)) {
-        oldMed.range[1] = oldRangeLimit;
-        oldMed.pos[1] = inter;
-        oldMed.partner[1] = currMed.me;
-      } else {
-        oldMed.range[0] = oldRangeLimit;
-        oldMed.pos[0] = inter;
-        oldMed.partner[0] = currMed.me;
-      }
-    } else if (isInside(inter, currMed.dir, oldMed.pos[0], point)) {
-      oldMed.range[0] = oldRangeLimit;
-      oldMed.pos[0] = inter;
-      oldMed.partner[0] = currMed.me;
-      oldMed.range[1] = -Infinity;
-      oldMed.pos[1] = null;
-      oldMed.partner[1] = null;
-    } else if (isInside(inter, currMed.dir, oldMed.pos[1], point)) {
-      oldMed.range[1] = oldRangeLimit;
-      oldMed.pos[1] = inter;
-      oldMed.partner[1] = currMed.me;
-      oldMed.range[0] = -Infinity;
-      oldMed.pos[0] = null;
-      oldMed.partner[0] = null;
+const setNew = (med, inter, range, partner) => {
+  if (med.range[0] === -Infinity && med.range[1] === Infinity) {
+    if (range > 0) {
+      doSet(med, 1, range, inter, partner);
+    } else {
+      doSet(med, 0, range, inter, partner);
     }
+  } else if (med.range[0] === -Infinity && med.range[1] !== Infinity) {
+    doSet(med, 0, range, inter, partner);
+  } else if (med.range[0] !== -Infinity && med.range[1] === Infinity) {
+    doSet(med, 1, range, inter, partner);
+  }
+  med.include = true;
+};
+
+const isClose = (med, rangeLimit) => rangeLimit > med.range[0] && rangeLimit < med.range[1];
+
+// const isSmaller = (med, otherMed) => { };
+
+const setPosAndRange = (inter, med, otherMed, point) => {
+  const rangeLimit = escalar(vP(inter, med.middle), med.dir);
+  const otherRangeLimit = escalar(vP(inter, otherMed.middle), otherMed.dir);
+  // >= and <= fails for squares
+  if (isClose(med, rangeLimit) && isClose(otherMed, otherRangeLimit)) {
+    if (otherMed.range[0] === -Infinity && otherMed.range[1] === Infinity) {
+      if (otherRangeLimit > 0) {
+        doSet(otherMed, 1, otherRangeLimit, inter, med.me);
+      } else {
+        doSet(otherMed, 0, otherRangeLimit, inter, med.me);
+      }
+    } else if (otherMed.range[0] === -Infinity && otherMed.range[1] !== Infinity) {
+      // if (distance(otherMed.pos, inter) < 0.0001) return;
+      // if (!isSmaller(inter, med.dir, otherMed.pos[1], point)) return;
+      if (isInside(inter, med.dir, otherMed.pos[1], point)) {
+        doSet(otherMed, 0, otherRangeLimit, inter, med.me);
+      } else {
+        doSet(otherMed, 1, otherRangeLimit, inter, med.me);
+      }
+    } else if (otherMed.range[0] !== -Infinity && otherMed.range[1] === Infinity) {
+      // if (distance(otherMed.pos, inter) < 0.0001) return;
+      if (isInside(inter, med.dir, otherMed.pos[0], point)) {
+        doSet(otherMed, 1, otherRangeLimit, inter, med.me);
+      } else {
+        doSet(otherMed, 0, otherRangeLimit, inter, med.me);
+      }
+    } else if (isInside(inter, med.dir, otherMed.pos[0], point)) {
+      // if (distance(otherMed.pos, inter) < 0.0001) return;
+      doSet(otherMed, 0, otherRangeLimit, inter, med.me);
+      doSet(otherMed, 1, Infinity, null, null);
+    } else if (isInside(inter, med.dir, otherMed.pos[1], point)) {
+      // if (distance(otherMed.pos, inter) < 0.0001) return;
+      doSet(otherMed, 1, otherRangeLimit, inter, med.me);
+      doSet(otherMed, 0, -Infinity, null, null);
+    }
+    setNew(med, inter, rangeLimit, otherMed.me);
   }
 };
 
-const area = (point, vertices) => {
+const area = (point, middle, pos) => {
+  const height = distance(point, middle);
+  const base = distance(pos[0], pos[1]);
+  return height * base / 2;
+};
+
+const verticesArea = (point, vertices) => {
   console.log('\n\r\n\r\n\rFINAL', JSON.stringify(vertices));
   if (vertices.find(vert => vert.range
     .find(range => range === -Infinity || range === Infinity))) return -1;
-  return vertices.reduce((acc, curr) => acc + distance(point, curr.middle) * distance(curr.pos[0], curr.pos[1]) / 2, 0);
+  return vertices.reduce(
+    (acc, curr) => acc + area(point, curr.middle, curr.pos), 0,
+  );
 };
 
 const voronoi_areas = p => p.map((point) => {
@@ -158,7 +169,10 @@ const voronoi_areas = p => p.map((point) => {
   const vertices = [];
   sorted.forEach((other, index) => {
     const med = initMed(point, other, index);
-    if (vertices.length === 1) { // Second mediatrix, calculate intersection
+    if (vertices.length === 0) { // First mediatrix
+      med.include = true;
+    } else if (vertices.length === 1) { // Second mediatrix, calculate intersection
+      med.include = true;
       const inter = intersect(med, vertices[0]);
       if (inter !== null) setPosAndRange(inter, med, vertices[0], point);
     } else if (vertices.length > 1) { // Rest of mediatrix
@@ -166,41 +180,27 @@ const voronoi_areas = p => p.map((point) => {
         if (med.visited.indexOf(otherMed.me) === -1 && otherMed.me !== med.me) {
           med.visited.push(otherMed.me);
           const inter = intersect(med, otherMed);
-          if (inter !== null) {
-            const rangeLimit = escalar(vP(inter, otherMed.middle), otherMed.dir);
-            if (rangeLimit > med.range[0] && rangeLimit < med.range[1]) {
-              setPosAndRange(inter, med, otherMed, point);
-            }
-          }
+          if (inter !== null) setPosAndRange(inter, med, otherMed, point);
         }
       });
     }
-    vertices.push(med);
+    console.log(index, med.include);
+    if (med.include) vertices.push(med);
   });
-  return area(point, vertices);
+  return verticesArea(point, vertices);
 });
 
 const p = [
-  new Point(0.0, 0.0),
-  new Point(2.0, 0.0),
-  new Point(-2.0, 0.0),
-  new Point(0.0, 2.0),
-  new Point(0.0, -2.0),
-];
-
-const p2 = [
   new Point(2.0, 1.0),
   new Point(2.0, -1.0),
   new Point(4.4, 2.2),
   new Point(4.4, -2.2),
   new Point(-0.4, 2.2),
-  new Point(-0.4, -2.2)];
+  new Point(-0.4, -2.2),
+];
 
-// const ans = [4.0, -1, -1, -1, -1];
-const ans2 = [8, 8, -1, -1, -1, -1];
+const result = voronoi_areas(p);
 
-// const result = voronoi_areas(p);
-const result2 = voronoi_areas(p2);
-
-// console.log(result, '\n\r', ans);
-console.log(result2, '\n\r', ans2);
+module.exports = {
+  voronoi_areas,
+};
